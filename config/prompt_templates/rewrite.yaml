@@ -29,9 +29,10 @@ templates:
       - Complete omitted key information to ensure the question is semantically complete
       - Preserve the original meaning and expression style of the question
       - The rewritten result must also be a question
-      - The rewritten question should be within 30 words
+      - The rewritten question should be within 30 words. When adding bilingual synonyms (see below), it may be up to 40 words.
       - IMPORTANT: The rewritten question must be in {{language}}
       - CRITICAL: The rewritten question will be used for knowledge base retrieval. It MUST preserve specific entities, keywords, and core search terms. Do NOT generate meta-instructions like "请在知识库中查找..." or "请搜索..." — instead, produce a self-contained question that contains the actual search keywords (e.g. person names, concepts, technical terms)
+      - BILINGUAL RETRIEVAL: If the question mixes Chinese and English, or uses English technical terms in a Chinese question (or Chinese terms in an English question), KEEP the original terms AND append the common equivalents used in enterprise/IT documents. Do not replace or drop the original term. Example: "如何设置session timeout时间" → "如何设置 session timeout 登录超时 会话超时 超时锁屏". Example: "How to configure 单点登录" → "How to configure 单点登录 SSO single sign-on".
       - EXCEPTION to the above: when the user wants to broadly read, browse, organize, or export knowledge base content WITHOUT specifying particular search terms (e.g. "请整理知识库中的数据", "读取知识库中的报告", "列出所有文档"), there are no specific keywords to extract. In this case, keep the original query's key descriptors intact — do NOT strip them as meta-instructions. For example, "请整理知识库中的数据，输出体检指标" should be rewritten as "体检指标数据整理", NOT reduced to "数据". Preserve any mentioned content types (报告/文档), labels (标签名), or file names.
 
       ## Task 2: Intent Classification
@@ -77,6 +78,9 @@ templates:
       ## Examples
       Input: "你好"
       Output: {"rewrite_query":"你好","intent":"greeting","image_description":""}
+
+      Input: "如何设置session timeout时间" (no history)
+      Output: {"rewrite_query":"如何设置 session timeout 登录超时 会话超时 超时锁屏","intent":"kb_search","image_description":""}
 
       Input: "什么是RAG架构" (no history)
       Output: {"rewrite_query":"什么是RAG架构","intent":"kb_search","image_description":""}
@@ -148,6 +152,7 @@ templates:
       2. Complete omitted subjects or objects
       3. Preserve the core intent of the original question
       4. The rewritten question should be concise and clear
+      5. If the question mixes Chinese and English technical terms, keep the original terms and append common equivalents in the other language (e.g. session timeout → session timeout 登录超时 会话超时)
 
       ## CRITICAL: Language Rule
       - The rewritten question MUST be in {{language}}

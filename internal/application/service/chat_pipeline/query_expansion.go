@@ -8,6 +8,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/Tencent/WeKnora/internal/searchutil"
 	"github.com/Tencent/WeKnora/internal/types"
 )
 
@@ -114,10 +115,13 @@ func (p *PluginSearch) runQueryExpansion(ctx context.Context, chatManage *types.
 func (p *PluginSearch) expandQueries(ctx context.Context, chatManage *types.ChatManage) []string {
 	query := strings.TrimSpace(chatManage.RewriteQuery)
 	if query == "" {
+		query = strings.TrimSpace(chatManage.Query)
+	}
+	if query == "" {
 		return nil
 	}
 
-	expansions := make([]string, 0, 5)
+	expansions := make([]string, 0, 8)
 	seen := make(map[string]struct{})
 	seen[strings.ToLower(query)] = struct{}{}
 	if q := strings.ToLower(chatManage.Query); q != "" {
@@ -135,6 +139,17 @@ func (p *PluginSearch) expandQueries(ctx context.Context, chatManage *types.Chat
 		}
 		seen[key] = struct{}{}
 		expansions = append(expansions, s)
+	}
+
+	// 0. Cross-script synonyms for mixed EN/ZH questions (session timeout ↔ 登录超时)
+	bilingual := searchutil.ExpandBilingualQuery(query)
+	addIfNew(bilingual.Query)
+	addIfNew(bilingual.Replaced)
+	if len(bilingual.Added) > 0 {
+		addIfNew(strings.Join(bilingual.Added, " "))
+		for _, term := range bilingual.Added {
+			addIfNew(term)
+		}
 	}
 
 	// 1. Remove common stopwords and create keyword-only variant
@@ -163,9 +178,10 @@ func (p *PluginSearch) expandQueries(ctx context.Context, chatManage *types.Chat
 		addIfNew(cleaned)
 	}
 
-	// Limit to 5 expansions
-	if len(expansions) > 5 {
-		expansions = expansions[:5]
+	// Keep bilingual variants; cap the rest so expansion search stays bounded.
+	const maxExpansions = 8
+	if len(expansions) > maxExpansions {
+		expansions = expansions[:maxExpansions]
 	}
 
 	pipelineInfo(ctx, "Search", "local_expansion_result", map[string]interface{}{

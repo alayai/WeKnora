@@ -55,6 +55,33 @@ func TestExpandQueriesBuildsChineseKeywordVariant(t *testing.T) {
 	assert.True(t, foundKeywordVariant, "expected a Chinese keyword expansion with segmented terms, got %v", expansions)
 }
 
+func TestExpandQueriesAddsBilingualSynonyms(t *testing.T) {
+	expansions := (&PluginSearch{}).expandQueries(context.Background(), &types.ChatManage{
+		PipelineState: types.PipelineState{RewriteQuery: "如何设置session timeout时间"},
+	})
+
+	joined := strings.Join(expansions, " || ")
+	if !strings.Contains(joined, "登录超时") {
+		t.Fatalf("expected 登录超时 in expansions, got %v", expansions)
+	}
+}
+
+func TestKBRetrievalQueryExpandsMixedLanguage(t *testing.T) {
+	cm := &types.ChatManage{
+		PipelineState: types.PipelineState{RewriteQuery: "如何设置session timeout时间？"},
+	}
+	got := kbRetrievalQuery(cm)
+	if !strings.Contains(got, "登录超时") {
+		t.Fatalf("retrieval query missing Chinese synonym: %q", got)
+	}
+	if cm.RetrievalQuery != got {
+		t.Fatalf("RetrievalQuery was not cached, got %q want %q", cm.RetrievalQuery, got)
+	}
+	if second := kbRetrievalQuery(cm); second != got {
+		t.Fatalf("cached retrieval query changed: %q vs %q", second, got)
+	}
+}
+
 func containsToken(values []string, want string) bool {
 	for _, value := range values {
 		if value == want {

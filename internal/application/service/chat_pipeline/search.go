@@ -75,13 +75,21 @@ func (p *PluginSearch) OnEvent(ctx context.Context,
 		return nil
 	}
 
+	retrievalQuery := kbRetrievalQuery(chatManage)
 	pipelineInfo(ctx, "Search", "input", map[string]interface{}{
-		"session_id":     chatManage.SessionID,
-		"rewrite_query":  chatManage.RewriteQuery,
-		"search_targets": len(chatManage.SearchTargets),
-		"tenant_id":      chatManage.TenantID,
-		"web_enabled":    chatManage.WebSearchEnabled,
+		"session_id":      chatManage.SessionID,
+		"rewrite_query":   chatManage.RewriteQuery,
+		"retrieval_query": retrievalQuery,
+		"search_targets":  len(chatManage.SearchTargets),
+		"tenant_id":       chatManage.TenantID,
+		"web_enabled":     chatManage.WebSearchEnabled,
 	})
+	if retrievalQuery != "" && retrievalQuery != strings.TrimSpace(chatManage.RewriteQuery) {
+		pipelineInfo(ctx, "Search", "bilingual_expand", map[string]interface{}{
+			"rewrite_query":   chatManage.RewriteQuery,
+			"retrieval_query": retrievalQuery,
+		})
+	}
 
 	// Run KB search and web search concurrently
 	pipelineInfo(ctx, "Search", "plan", map[string]interface{}{
@@ -353,7 +361,7 @@ func (p *PluginSearch) searchByTargets(
 		return nil, nil
 	}
 
-	queryText := strings.TrimSpace(chatManage.RewriteQuery)
+	queryText := kbRetrievalQuery(chatManage)
 
 	// Batch-fetch KB records to determine embedding model grouping.
 	// On failure, all targets fall into an empty-key group and HybridSearch

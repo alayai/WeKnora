@@ -12,6 +12,7 @@ templates:
       - Summarize the user's question and provide the most important keywords/phrases, no more than 5
       - Use commas as separators between keywords/phrases
       - Keywords/phrases must come from the user's question, do not fabricate
+      - Exception: when the question mixes languages or uses English technical terms in a Chinese question (or vice versa), ALSO output the common equivalents in the other language (e.g. session timeout → session timeout, 登录超时, 会话超时, 超时锁屏)
       - Do not output any explanation, output keywords/phrases directly without any prefix, explanation, or punctuation, and do not attempt to answer the question
       - IMPORTANT: Extract keywords in {{language}}
 
@@ -44,6 +45,11 @@ templates:
       USER: How to connect an iPhone to WiFi?
       ###############
       Output: iPhone, connect WiFi, iPhone WiFi setup
+
+      ## Example 6
+      USER: 如何设置session timeout时间？
+      ###############
+      Output: session timeout, 登录超时, 会话超时, 超时锁屏, 超时时间
 
       # Real Data
       USER: {{query}}

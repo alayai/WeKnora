@@ -41,12 +41,14 @@ func (p *PluginRerank) OnEvent(ctx context.Context,
 	if !chatManage.NeedsRetrieval() {
 		return next()
 	}
+	retrievalQuery := kbRetrievalQuery(chatManage)
 	pipelineInfo(ctx, "Rerank", "input", map[string]interface{}{
-		"session_id":    chatManage.SessionID,
-		"candidate_cnt": len(chatManage.SearchResult),
-		"rerank_model":  chatManage.RerankModelID,
-		"rerank_thresh": chatManage.RerankThreshold,
-		"rewrite_query": chatManage.RewriteQuery,
+		"session_id":      chatManage.SessionID,
+		"candidate_cnt":   len(chatManage.SearchResult),
+		"rerank_model":    chatManage.RerankModelID,
+		"rerank_thresh":   chatManage.RerankThreshold,
+		"rewrite_query":   chatManage.RewriteQuery,
+		"retrieval_query": retrievalQuery,
 	})
 	if len(chatManage.SearchResult) == 0 {
 		pipelineInfo(ctx, "Rerank", "skip", map[string]interface{}{
@@ -91,7 +93,7 @@ func (p *PluginRerank) OnEvent(ctx context.Context,
 	rerankCtx, rerankSpan := langfuse.GetManager().StartSpan(ctx, langfuse.SpanOptions{
 		Name: "rerank",
 		Input: map[string]interface{}{
-			"query":            chatManage.RewriteQuery,
+			"query":            retrievalQuery,
 			"candidate_count":  len(candidatesToRerank),
 			"rerank_model_id":  chatManage.RerankModelID,
 			"threshold":        chatManage.RerankThreshold,
@@ -122,10 +124,10 @@ func (p *PluginRerank) OnEvent(ctx context.Context,
 
 	// Only call rerank model if there are candidates
 	if len(candidatesToRerank) > 0 {
-		// Single rerank call with RewriteQuery, use threshold degradation if no results
+		// Single rerank call; degrade threshold if nothing passes.
 		originalThreshold := chatManage.RerankThreshold
 		var rerankErr error
-		rerankResp, rerankErr = p.rerank(ctx, chatManage, rerankModel, chatManage.RewriteQuery, passages, candidatesToRerank)
+		rerankResp, rerankErr = p.rerank(ctx, chatManage, rerankModel, retrievalQuery, passages, candidatesToRerank)
 
 		if rerankErr != nil {
 			// Rerank API failed — fallback to original retrieval results so the
@@ -158,7 +160,7 @@ func (p *PluginRerank) OnEvent(ctx context.Context,
 				"reason":        "no results above original threshold, retrying with lower threshold",
 			})
 			chatManage.RerankThreshold = degradedThreshold
-			rerankResp, rerankErr = p.rerank(ctx, chatManage, rerankModel, chatManage.RewriteQuery, passages, candidatesToRerank)
+			rerankResp, rerankErr = p.rerank(ctx, chatManage, rerankModel, retrievalQuery, passages, candidatesToRerank)
 			// Restore original threshold
 			chatManage.RerankThreshold = originalThreshold
 			if rerankErr != nil {

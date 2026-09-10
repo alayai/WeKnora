@@ -114,6 +114,10 @@ type PipelineState struct {
 	RewriteQuery string      `json:"rewrite_query,omitempty"`
 	Intent       QueryIntent `json:"intent,omitempty"`
 	History      []*History  `json:"history,omitempty"`
+	// RetrievalQuery is RewriteQuery after bilingual synonym expansion.
+	// Search and rerank use this so mixed EN/ZH questions can hit
+	// documents written in the other script. Empty falls back to RewriteQuery.
+	RetrievalQuery string `json:"-"`
 
 	SearchResult         []*SearchResult   `json:"-"`
 	RerankResult         []*SearchResult   `json:"-"`
@@ -250,6 +254,7 @@ func (c *ChatManage) Clone() *ChatManage {
 		},
 		PipelineState: PipelineState{
 			RewriteQuery:         c.RewriteQuery,
+			RetrievalQuery:       c.RetrievalQuery,
 			Intent:               c.Intent,
 			ImageDescription:     c.ImageDescription,
 			QuotedContext:        c.QuotedContext,
