@@ -9,6 +9,7 @@ func TestIsValidFileTypeHTML(t *testing.T) {
 		want     bool
 	}{
 		{name: "html", filename: "index.html", want: true},
+		{name: "zip markdown pack", filename: "faq.zip", want: true},
 		{name: "uppercase html", filename: "INDEX.HTML", want: true},
 		{name: "htm", filename: "legacy.htm", want: true},
 		{name: "unsupported", filename: "payload.exe", want: false},
@@ -36,6 +37,7 @@ func TestIsSupportedImportExtension(t *testing.T) {
 		{name: "uppercase", ext: "XLSX", want: true},
 		{name: "surrounding space", ext: " xlsx ", want: true},
 		{name: "pdf", ext: "pdf", want: true},
+		{name: "zip", ext: "zip", want: true},
 		{name: "unsupported", ext: "exe", want: false},
 		{name: "video", ext: "mp4", want: false},
 		{name: "empty", ext: "", want: false},

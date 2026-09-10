@@ -27,6 +27,8 @@ func TestNewReaderRoutesByEngine(t *testing.T) {
 		want     any
 	}{
 		{name: "simple engine", engine: SimpleEngineName, fileType: "md", want: &SimpleFormatReader{}},
+		{name: "unset engine handles zip in Go", fileType: "zip", want: &SimpleFormatReader{}},
+		{name: "builtin engine still unpacks markdown zip in Go", engine: BuiltinEngineName, fileType: "zip", want: &SimpleFormatReader{}},
 		{name: "builtin engine goes remote", engine: BuiltinEngineName, fileType: "md", want: remote},
 		{name: "unset engine handles simple formats in Go", fileType: "csv", want: &SimpleFormatReader{}},
 		{name: "unset engine sends complex formats to docreader", fileType: "docx", want: remote},

@@ -29,7 +29,7 @@ const unknownFileType = "unknown"
 // that let direct upload accept xlsx while URL import rejected it (#2447).
 var supportedImportFileExtensions = map[string]struct{}{
 	"pdf": {}, "txt": {}, "docx": {}, "doc": {}, "epub": {},
-	"html": {}, "htm": {}, "mhtml": {}, "md": {}, "markdown": {},
+	"html": {}, "htm": {}, "mhtml": {}, "md": {}, "markdown": {}, "zip": {},
 	"png": {}, "jpg": {}, "jpeg": {}, "gif": {},
 	"csv": {}, "xlsx": {}, "xls": {}, "pptx": {}, "ppt": {}, "json": {},
 	"mp3": {}, "wav": {}, "m4a": {}, "flac": {}, "ogg": {},

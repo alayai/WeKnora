@@ -69,6 +69,11 @@ func lookupEngine(name string) (EngineRegistration, bool) {
 func NewReader(
 	ctx context.Context, engine, fileType string, isURL bool, deps ReaderDeps,
 ) (interfaces.DocReader, error) {
+	// Markdown+images zip packs are unpacked in Go. Remote engines cannot
+	// see sibling files inside the archive, so always keep this local.
+	if !isURL && isMarkdownZipFileType(fileType) {
+		return &SimpleFormatReader{}, nil
+	}
 	if registration, ok := lookupEngine(engine); ok {
 		return registration.NewReader(ctx, deps)
 	}

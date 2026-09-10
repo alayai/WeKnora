@@ -2,6 +2,7 @@ const DEFAULT_VALID_TYPES = new Set([
   "pdf",
   "txt",
   "md",
+  "zip",
   "docx",
   "doc",
   "pptx",

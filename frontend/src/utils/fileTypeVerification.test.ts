@@ -6,6 +6,7 @@ import { shouldRejectKnowledgeFileType } from './fileTypeVerification.ts'
 test('shouldRejectKnowledgeFileType accepts HTML in the fallback whitelist', () => {
   assert.equal(shouldRejectKnowledgeFileType('page.html'), false)
   assert.equal(shouldRejectKnowledgeFileType('legacy.HTM'), false)
+  assert.equal(shouldRejectKnowledgeFileType('doc.zip'), false)
   assert.equal(shouldRejectKnowledgeFileType('payload.exe'), true)
 })
 

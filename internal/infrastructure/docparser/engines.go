@@ -103,7 +103,7 @@ func (e *simpleEngine) Description() string {
 
 func (e *simpleEngine) FileTypes(_ bool) []string {
 	return []string{
-		"md", "markdown", "txt", "csv", "json",
+		"md", "markdown", "txt", "csv", "json", "zip",
 		"jpg", "jpeg", "png", "gif", "bmp", "tiff", "webp",
 		"mp3", "wav", "m4a", "flac", "ogg",
 	}

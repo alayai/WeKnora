@@ -17,6 +17,7 @@ var simpleFormats = map[string]bool{
 	"txt": true, "text": true,
 	"csv":  true,
 	"json": true,
+	"zip":  true,
 }
 
 var imageFormats = map[string]bool{
@@ -56,6 +57,8 @@ func (b *SimpleFormatReader) Read(_ context.Context, req *types.ReadRequest) (*t
 	switch {
 	case ft == "md" || ft == "markdown":
 		return &types.ReadResult{MarkdownContent: string(req.FileContent)}, nil
+	case isMarkdownZipFileType(ft):
+		return markdownZipToResult(req.FileContent)
 	case ft == "txt" || ft == "text":
 		return &types.ReadResult{MarkdownContent: string(req.FileContent)}, nil
 	case ft == "csv":
