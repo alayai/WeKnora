@@ -11,12 +11,33 @@ import { startMockWeknora, ARCH_HANDLE, ARCH_PUBLIC } from './helpers/mock-wekno
 const never = new AbortController().signal
 const exec = { signal: never }
 
+function attachmentContext(saved) {
+  return {
+    get(service) {
+      if (service !== 'attachments') return undefined
+      return {
+        async saveImages(inputs) {
+          saved.push(...inputs)
+          return inputs.map((input, index) => ({
+            attachmentId: `att-${index}`,
+            mediaType: input.mediaType,
+            bytes: input.data.byteLength,
+            width: 1,
+            height: 1,
+            name: input.name,
+          }))
+        },
+      }
+    },
+  }
+}
+
 /** Build the tools against a live mock backend. */
-async function toolset(overrides = {}) {
+async function toolset(overrides = {}, ctx) {
   const mock = await startMockWeknora()
   after(() => mock.close())
   const config = resolveConfig({ baseUrl: mock.url, ...overrides })
-  const tools = createTools(new WeknoraClient(config), config)
+  const tools = createTools(new WeknoraClient(config), config, ctx)
   return { mock, config, byName: new Map(tools.map(tool => [tool.name, tool])), tools }
 }
 
@@ -28,7 +49,7 @@ async function call(tool, args) {
   assert.deepEqual(violations, [], `${tool.name} returned a value its output schema rejects`)
   const content = tool.output.render(args, value)
   assert.ok(Array.isArray(content) && content.length > 0 && content[0].type === 'text')
-  return { value, text: content.map(block => block.text).join('\n') }
+  return { value, text: content.filter(block => block.type === 'text').map(block => block.text).join('\n'), content }
 }
 
 test('every declared schema stays inside the supported subset', async () => {
@@ -351,6 +372,43 @@ test('ask copies public figure URLs from the retrieved passages', async () => {
   const { value, text } = await call(byName.get('weknora_ask'), { query: '系统架构图长什么样' })
   assert.ok(value.answer.includes(`![系统架构](${ARCH_PUBLIC})`))
   assert.ok(text.includes(`![系统架构](${ARCH_PUBLIC})`))
+})
+
+test('ask saves handle-mode resource images as Harness image blocks', async () => {
+  const saved = []
+  const { byName } = await toolset({ knowledgeBaseIds: ['kb-product'], resourceUrls: 'handle' }, attachmentContext(saved))
+  const { value, text, content } = await call(byName.get('weknora_ask'), { query: '系统架构图长什么样' })
+  assert.equal(value.images.length, 1)
+  assert.equal(saved.length, 1)
+  assert.equal(saved[0].mediaType, 'image/png')
+  assert.ok(text.includes(`![系统架构](${ARCH_HANDLE})`))
+  assert.deepEqual(content.at(-1), { type: 'image', attachment: value.images[0] })
+})
+
+test('search saves handle-mode resource images as Harness image blocks', async () => {
+  const saved = []
+  const { byName } = await toolset({ knowledgeBaseIds: ['kb-product'], resourceUrls: 'handle' }, attachmentContext(saved))
+  const { value, text, content } = await call(byName.get('weknora_search'), { query: '系统架构图' })
+  const hit = value.results.find(result => result.knowledge_id === 'doc-architecture')
+  assert.ok(hit.content.includes(`![系统架构](${ARCH_HANDLE})`))
+  assert.equal(value.images.length, 1)
+  assert.equal(saved.length, 1)
+  assert.equal(saved[0].mediaType, 'image/png')
+  assert.ok(text.includes(`![系统架构](${ARCH_HANDLE})`))
+  assert.deepEqual(content.at(-1), { type: 'image', attachment: value.images[0] })
+})
+
+test('read_document saves handle-mode resource images as Harness image blocks', async () => {
+  const saved = []
+  const { byName } = await toolset({ knowledgeBaseIds: ['kb-product'], resourceUrls: 'handle' }, attachmentContext(saved))
+  const { value, text, content } = await call(byName.get('weknora_read_document'), {
+    knowledge_id: 'doc-architecture',
+  })
+  assert.equal(value.images.length, 1)
+  assert.equal(saved.length, 1)
+  assert.equal(saved[0].mediaType, 'image/png')
+  assert.ok(text.includes(`![系统架构](${ARCH_HANDLE})`))
+  assert.deepEqual(content.at(-1), { type: 'image', attachment: value.images[0] })
 })
 
 test('handle mode keeps internal resource handles instead of public URLs', async () => {

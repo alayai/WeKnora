@@ -69,6 +69,10 @@ const KNOWLEDGE_BASES = [
 
 const ARCH_HANDLE = 'resource://AbCdEfGhIjKlMnOpQrStUv'
 const ARCH_PUBLIC = 'https://cdn.example.com/architecture.png'
+const ARCH_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC',
+  'base64',
+)
 
 /** Mirror WeKnora's `resource_urls=public` rewrite of `resource://` handles. */
 function rewriteResources(value, publicMode) {
@@ -190,6 +194,20 @@ export async function startMockWeknora(options = {}) {
       }
 
       const publicMode = url.searchParams.get('resource_urls') === 'public'
+
+      if (request.method === 'GET' && url.pathname === '/files') {
+        if (url.searchParams.get('file_path') !== ARCH_HANDLE) {
+          json(404, { success: false, error: { message: 'resource not found' } })
+          return
+        }
+        response.writeHead(200, {
+          'Content-Type': 'image/png',
+          'Content-Length': String(ARCH_PNG.byteLength),
+          'Content-Disposition': 'inline; filename=architecture.png',
+        })
+        response.end(ARCH_PNG)
+        return
+      }
 
       const forced = failures.get(url.pathname)
       if (forced !== undefined) {

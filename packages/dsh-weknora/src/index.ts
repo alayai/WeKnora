@@ -29,7 +29,7 @@ export function apply(ctx: HarnessContext, config: unknown): void {
   const resolved = resolveConfig(config as never)
   const client = new WeknoraClient(resolved)
   const registered: string[] = []
-  for (const definition of createTools(client, resolved)) {
+  for (const definition of createTools(client, resolved, ctx)) {
     ctx.tools.register(definition)
     registered.push(definition.name)
   }

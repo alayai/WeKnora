@@ -3,7 +3,7 @@ import { after, test } from 'node:test'
 
 import { WeknoraApiError, WeknoraClient } from '../dist/client.js'
 import { resolveConfig } from '../dist/config.js'
-import { startMockWeknora } from './helpers/mock-weknora.mjs'
+import { ARCH_HANDLE, startMockWeknora } from './helpers/mock-weknora.mjs'
 
 const never = new AbortController().signal
 
@@ -60,6 +60,16 @@ test('handle mode omits the resource_urls query parameter', async () => {
   const { mock, client } = await harness({ resourceUrls: 'handle' })
   await client.listKnowledgeBases(never)
   assert.equal(mock.requests.at(-1).query.resource_urls, undefined)
+})
+
+test('fetchResource loads resource handles through the root files proxy', async () => {
+  const { mock, client } = await harness({ apiKey: 'secret-key' }, { apiKey: 'secret-key' })
+  const resource = await client.fetchResource(ARCH_HANDLE, never)
+  assert.equal(resource.mediaType, 'image/png')
+  assert.ok(resource.data.byteLength > 0)
+  assert.equal(mock.requests.at(-1).path, '/files')
+  assert.equal(mock.requests.at(-1).query.file_path, ARCH_HANDLE)
+  assert.equal(mock.requests.at(-1).headers['x-api-key'], 'secret-key')
 })
 
 test('a knowledge-base-restricted key falls back from public URLs to handles', async () => {

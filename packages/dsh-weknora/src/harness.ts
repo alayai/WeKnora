@@ -28,6 +28,33 @@ export interface TextContentBlock {
   text: string
 }
 
+export interface ImageAttachmentRef {
+  attachmentId: string
+  mediaType: 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif'
+  bytes: number
+  width: number
+  height: number
+  name?: string
+  originalDimensions?: { width: number, height: number }
+}
+
+export interface ImageContentBlock {
+  type: 'image'
+  attachment: ImageAttachmentRef
+}
+
+export type ContentBlock = TextContentBlock | ImageContentBlock
+
+export interface SaveImageAttachment {
+  data: Uint8Array
+  mediaType: ImageAttachmentRef['mediaType']
+  name?: string
+}
+
+export interface AttachmentStore {
+  saveImages(inputs: readonly SaveImageAttachment[]): Promise<readonly ImageAttachmentRef[]>
+}
+
 /** Execution context handed to a tool body. */
 export interface ToolRunContext {
   readonly signal: AbortSignal
@@ -40,7 +67,7 @@ export interface ToolDefinition {
   readonly parameters: JsonSchemaNode
   readonly output: {
     readonly schema: JsonSchemaNode
-    render(args: unknown, value: unknown): TextContentBlock[]
+    render(args: unknown, value: unknown): ContentBlock[]
   }
   execute(args: unknown, exec: ToolRunContext): Promise<unknown>
   readonly timeoutMs?: number
@@ -55,6 +82,7 @@ export interface ToolRegistry {
 /** The slice of the Cordis context this plugin injects. */
 export interface HarnessContext {
   readonly tools: ToolRegistry
+  get?(service: 'attachments'): AttachmentStore | undefined
   readonly logger?: {
     info(...args: unknown[]): void
     warn(...args: unknown[]): void

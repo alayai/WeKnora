@@ -60,6 +60,11 @@ export interface StreamedAnswer {
   toolCalls: string[]
 }
 
+export interface FetchedResource {
+  data: Uint8Array
+  mediaType: string
+}
+
 /** Raised for any non-2xx response or transport failure, with the key redacted. */
 export class WeknoraApiError extends Error {
   readonly status: number | undefined
@@ -142,6 +147,15 @@ export class WeknoraClient {
     return url.toString()
   }
 
+  private resourceUrl(filePath: string): string {
+    const url = new URL(this.config.baseUrl)
+    url.pathname = url.pathname.replace(/\/api\/v\d+\/?$/, '').replace(/\/+$/, '') + '/files'
+    url.search = ''
+    url.hash = ''
+    url.searchParams.set('file_path', filePath)
+    return url.toString()
+  }
+
   private isPublicModeForbidden(error: unknown): boolean {
     return error instanceof WeknoraApiError
       && this.config.resourceUrls === 'public'
@@ -196,6 +210,26 @@ export class WeknoraClient {
   async listKnowledgeBases(signal: AbortSignal): Promise<KnowledgeBaseSummary[]> {
     const envelope = await this.fetchJson<KnowledgeBaseSummary[]>('/knowledge-bases', { method: 'GET' }, signal)
     return Array.isArray(envelope.data) ? envelope.data : []
+  }
+
+  /** Fetch a resource:// image through WeKnora's authenticated file proxy. */
+  async fetchResource(filePath: string, signal: AbortSignal): Promise<FetchedResource> {
+    let response: Response
+    try {
+      response = await fetch(this.resourceUrl(filePath), {
+        method: 'GET',
+        headers: this.headers(),
+        signal: deadline(signal, this.config.requestTimeoutMs),
+      })
+    } catch (cause) {
+      throw new WeknoraApiError(`GET /files failed: ${describeTransportFailure(cause, signal)}`)
+    }
+    if (!response.ok) {
+      const text = await response.text()
+      throw new WeknoraApiError(`GET /files failed with HTTP ${response.status}: ${reasonOf(text)}`, response.status)
+    }
+    const mediaType = response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase() ?? ''
+    return { data: new Uint8Array(await response.arrayBuffer()), mediaType }
   }
 
   /** Hybrid (vector + keyword) retrieval across one or more knowledge bases. */
