@@ -615,12 +615,71 @@ func initRedisClient() (*redis.Client, error) {
 		TLSConfig: common.RedisTLSConfig(),
 	})
 
-	_, err = client.Ping(context.Background()).Result()
-	if err != nil {
-		return nil, fmt.Errorf("连接Redis失败: %w", err)
+	const maxAttempts = 8
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		_, err = client.Ping(context.Background()).Result()
+		if err == nil {
+			return client, nil
+		}
+		if !isTransientNetworkError(err) || attempt == maxAttempts {
+			break
+		}
+		logger.Warnf(context.Background(),
+			"[Redis] ping %s failed (attempt %d/%d): %v", redisAddr, attempt, maxAttempts, err)
+		time.Sleep(time.Duration(attempt) * 400 * time.Millisecond)
 	}
+	_ = client.Close()
+	return nil, fmt.Errorf("连接Redis失败: %w", err)
+}
 
-	return client, nil
+func openGormWithRetry(dialector gorm.Dialector, driver string) (*gorm.DB, error) {
+	cfg := &gorm.Config{
+		NowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
+	}
+	maxAttempts := 1
+	if driver == "postgres" {
+		maxAttempts = 8
+	}
+	var (
+		db  *gorm.DB
+		err error
+	)
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		db, err = gorm.Open(dialector, cfg)
+		if err == nil {
+			return db, nil
+		}
+		if !isTransientNetworkError(err) || attempt == maxAttempts {
+			return nil, err
+		}
+		logger.Warnf(context.Background(),
+			"[DB] connect failed (attempt %d/%d): %v", attempt, maxAttempts, err)
+		time.Sleep(time.Duration(attempt) * 400 * time.Millisecond)
+	}
+	return nil, err
+}
+
+func isTransientNetworkError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	for _, needle := range []string{
+		"connection reset",
+		"connection refused",
+		"broken pipe",
+		"i/o timeout",
+		"timeout",
+		"eof",
+		"no such host",
+	} {
+		if strings.Contains(msg, needle) {
+			return true
+		}
+	}
+	return false
 }
 
 // initDatabase initializes database connection
@@ -699,11 +758,7 @@ func initDatabase(cfg *config.Config) (*gorm.DB, error) {
 	default:
 		return nil, fmt.Errorf("unsupported database driver: %s", os.Getenv("DB_DRIVER"))
 	}
-	db, err := gorm.Open(dialector, &gorm.Config{
-		NowFunc: func() time.Time {
-			return time.Now().UTC()
-		},
-	})
+	db, err := openGormWithRetry(dialector, os.Getenv("DB_DRIVER"))
 	if err != nil {
 		return nil, err
 	}

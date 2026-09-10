@@ -1,0 +1,41 @@
+# Overlay: keep the current Docker data volumes, but run the Go app on the host.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.host-app.yml \
+#     --profile minio --profile neo4j --profile qdrant --profile searxng \
+#     --profile dex --profile langfuse up -d
+#   make dev-app
+#
+# Postgres/Redis are published on 15432/16379 so they do not collide with
+# other stacks bound to 5432/6379. Frontend Nginx talks to the host process
+# via host.docker.internal.
+
+services:
+  app:
+    profiles: ["docker-app"]
+
+  postgres:
+    ports:
+      - "127.0.0.1:${DB_HOST_PORT:-15432}:5432"
+
+  redis:
+    ports:
+      - "127.0.0.1:${REDIS_HOST_PORT:-16379}:6379"
+
+  docreader:
+    ports:
+      - "127.0.0.1:${DOCREADER_HOST_PORT:-15051}:50051"
+
+  frontend:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      APP_HOST: host.docker.internal
+      APP_PORT: "${SERVER_PORT:-${APP_PORT:-18080}}"
+    depends_on: !reset {}
+
+  mcp:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      WEKNORA_BASE_URL: "http://host.docker.internal:${SERVER_PORT:-${APP_PORT:-18080}}/api/v1"
+    depends_on: !reset {}

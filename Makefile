@@ -1,4 +1,4 @@
-.PHONY: help build run test clean docker-build-app docker-build-docreader docker-build-frontend docker-build-all docker-run migrate-up migrate-down docker-restart docker-stop start-all stop-all start-ollama stop-ollama build-images build-images-app build-images-docreader build-images-frontend clean-images check-env list-containers pull-images show-platform dev-start dev-stop dev-restart dev-logs dev-status dev-app dev-frontend docs install-swagger build-lite run-lite package-lite anydoc-lib build-anydoc
+.PHONY: help build run test clean docker-build-app docker-build-docreader docker-build-frontend docker-build-all docker-run migrate-up migrate-down docker-restart docker-stop start-all stop-all start-ollama stop-ollama build-images build-images-app build-images-docreader build-images-frontend clean-images check-env list-containers pull-images show-platform dev-start dev-stop dev-restart dev-logs dev-status dev-app dev-frontend host-infra docs install-swagger build-lite run-lite package-lite anydoc-lib build-anydoc
 
 # Show help
 help:
@@ -57,8 +57,9 @@ help:
 	@echo "  dev-restart       重启开发环境"
 	@echo "  dev-logs          查看开发环境日志"
 	@echo "  dev-status        查看开发环境状态"
-	@echo "  dev-app           启动后端应用（本地运行，需先运行 dev-start）"
+	@echo "  dev-app           启动后端应用（本地运行）"
 	@echo "                    已 make anydoc-lib 时自动链接 anydoc 引擎"
+	@echo "  host-infra        在现有 compose 栈上改为宿主机跑 app（不停其它容器）"
 	@echo "  dev-frontend      启动前端（本地运行，需先运行 dev-start）"
 	@echo ""
 	@echo "Lite 模式（零外部依赖）:"
@@ -343,6 +344,9 @@ dev-status:
 
 dev-app:
 	./scripts/dev.sh app
+
+host-infra:
+	./scripts/dev.sh host-infra
 
 dev-frontend:
 	./scripts/dev.sh frontend
