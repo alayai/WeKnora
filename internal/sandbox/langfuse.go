@@ -12,7 +12,8 @@ const sandboxSpanPreviewRunes = 256
 // wrapLangfuseRemoteClient records provider-neutral sandbox RPCs as Langfuse
 // spans (sandbox.exec / sandbox.connect / …) so LiteFuse shows a product-level
 // tree instead of a pile of Docker Engine HTTP calls parented to whatever
-// agent.round happened to be recording. No-op when Langfuse is disabled.
+// agent.round happened to be recording. No-op when Langfuse is disabled or
+// the caller has no parent trace.
 //
 // Snapshot capability is forwarded: wrapping must not hide RemoteSnapshotManager
 // from SnapshotManagerFrom.
@@ -248,7 +249,7 @@ func startSandboxSpan(
 	name string,
 	input, extraMeta map[string]interface{},
 ) (context.Context, *langfuse.Span) {
-	return langfuse.GetManager().StartSpan(ctx, langfuse.SpanOptions{
+	return langfuse.GetManager().StartChildSpan(ctx, langfuse.SpanOptions{
 		Name:     name,
 		Input:    input,
 		Metadata: extraMeta,
@@ -280,7 +281,35 @@ func truncateSandboxPreview(s string) string {
 	return string(runes[:sandboxSpanPreviewRunes]) + "…"
 }
 
+// OpenTerminal forwards the interactive-terminal capability so wrapping does
+// not hide RemoteTerminalManager from TerminalManagerFrom.
+//
+// It lives on the base decorator (not on a dedicated one like
+// langfuseSnapshotClient) so *every* wrapping shape exposes the capability:
+// langfuseSnapshotClient embeds this type, so it inherits the method.
+// Whether a backend actually supports terminals stays delegated to the inner
+// client's SupportsTerminals flag, which the *From helpers check.
+func (c *langfuseRemoteClient) OpenTerminal(
+	ctx context.Context,
+	handle RemoteSandboxHandle,
+	opts RemoteTerminalOptions,
+) (RemoteTerminalSession, error) {
+	inner, ok := c.inner.(RemoteTerminalManager)
+	if !ok {
+		return nil, &RemoteError{
+			Kind:    RemoteErrorKindUnsupported,
+			Op:      "OpenTerminal",
+			Message: "inner client has no terminal manager",
+		}
+	}
+	ctx, span := startSandboxSpan(ctx, "sandbox.open_terminal", sandboxHandleOut(handle), nil)
+	session, err := inner.OpenTerminal(ctx, handle, opts)
+	span.Finish(sandboxHandleOut(handle), nil, err)
+	return session, err
+}
+
 var (
 	_ RemoteSandboxClient   = (*langfuseRemoteClient)(nil)
 	_ RemoteSnapshotManager = (*langfuseSnapshotClient)(nil)
+	_ RemoteTerminalManager = (*langfuseRemoteClient)(nil)
 )

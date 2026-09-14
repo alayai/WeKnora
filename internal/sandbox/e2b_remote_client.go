@@ -172,6 +172,8 @@ func (c *E2BRemoteClient) Capabilities() RemoteSandboxCapabilities {
 		// E2B has no named-volume mount API that WeKnora can use; advertising
 		// it would let a workspace configure a mount that never appears.
 		SupportsVolumes: false,
+		// envd exposes an interactive PTY service that go-e2b wraps.
+		SupportsTerminals: true,
 	}
 }
 
@@ -226,7 +228,7 @@ func (c *E2BRemoteClient) ListTemplates(ctx context.Context) ([]RemoteTemplate, 
 			ID:        item.TemplateID,
 			Name:      name,
 			Status:    status,
-			Version:   item.EnvdVersion,
+			Version:   item.BuildID,
 			CreatedAt: item.CreatedAt,
 			UpdatedAt: item.UpdatedAt,
 			Standard:  standard,
@@ -394,8 +396,17 @@ func (c *E2BRemoteClient) DeleteSupersededStandardTemplates(ctx context.Context,
 	return nil
 }
 
+// e2bPtyPromptOverrideCmd re-sources the image prompt after E2B's
+// template provisioner appends `PS1='\w $ '` to bashrc. Harmless if the
+// image already sources /etc/weknora/pty-prompt.sh (PROMPT_COMMAND wins
+// either way); required when rebuilding from an older image that does not.
+const e2bPtyPromptOverrideCmd = `. /etc/weknora/pty-prompt.sh 2>/dev/null; ` +
+	`for f in /root/.bashrc /home/user/.bashrc /etc/profile.d/zz-weknora-prompt.sh; do ` +
+	`grep -q /etc/weknora/pty-prompt.sh "$f" 2>/dev/null || echo '. /etc/weknora/pty-prompt.sh' >> "$f"; ` +
+	`done`
+
 func (c *E2BRemoteClient) buildStandardTemplate(ctx context.Context) (*RemoteTemplate, error) {
-	builder := e2b.NewTemplate().FromImage(DefaultDockerImage)
+	builder := e2b.NewTemplate().FromImage(DefaultDockerImage).RunCmd(e2bPtyPromptOverrideCmd)
 	build, err := builder.BuildInBackground(ctx, c.client, e2b.BuildConfig{
 		Name: StandardTemplateName,
 		// Creating a sandbox from a plain template name or ID resolves the
@@ -801,6 +812,10 @@ func (c *E2BRemoteClient) Exec(
 
 	start := time.Now()
 	options := []e2b.RunOption{}
+	if request.OnOutput != nil {
+		options = append(options, e2b.WithOnStdout(func(p []byte) { request.OnOutput("stdout", p) }),
+			e2b.WithOnStderr(func(p []byte) { request.OnOutput("stderr", p) }))
+	}
 	if request.WorkDir != "" {
 		options = append(options, e2b.WithCwd(request.WorkDir))
 	}
@@ -864,10 +879,12 @@ func (c *E2BRemoteClient) Exec(
 }
 
 // Filesystem operations name DefaultSandboxExecUser explicitly rather than
-// relying on the daemon's default account. It keeps ownership aligned with the
-// account scripts run as, and it is required for interoperability: E2B Cloud
-// falls back to "user" when the request omits it, while other E2B-compatible
-// control planes reject the call outright.
+// relying on the daemon's default account. Naming the user is required for
+// interoperability: E2B Cloud falls back to "user" when the request omits it,
+// while other E2B-compatible control planes reject the call outright. The
+// default account is root, which matches what scripts run as; under
+// one-session-one-sandbox there is no shared volume here to defend with
+// file-mode ownership.
 func (c *E2BRemoteClient) WriteFile(
 	ctx context.Context,
 	handle RemoteSandboxHandle,

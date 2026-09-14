@@ -398,22 +398,25 @@ export interface CreateSystemUserResponse {
    * be fetched again.
    */
   generated_password?: string
+}
+
+export interface CreateSystemUserResult extends CreateSystemUserResponse {
   /**
-   * True on the 200 retry when the identity already existed. The shared
-   * axios interceptor drops HTTP status, so callers must read this flag
-   * instead of the status code.
+   * True only when this call created the account (HTTP 201), false on the
+   * idempotent 200 retry (identity already existed).
    */
-  idempotent?: boolean
+  created: boolean
 }
 
 /**
  * Provision a new local user account (SystemAdmin only).
- * Backend returns the unwrapped CreateSystemUserResponse body.
- * 201 on create, 200 with `idempotent: true` when the identity existed.
+ * The backend answers 201 on create and 200 on the idempotent retry with
+ * the same CreateSystemUserResponse body. The status is projected onto
+ * `created`.
  */
-export async function createSystemUser(req: CreateSystemUserRequest): Promise<CreateSystemUserResponse> {
-  const response = await post('/api/v1/system/admin/users/create', req)
-  return response as unknown as CreateSystemUserResponse
+export async function createSystemUser(req: CreateSystemUserRequest): Promise<CreateSystemUserResult> {
+  const response = await post<CreateSystemUserResponse>('/api/v1/system/admin/users/create', req)
+  return { ...response, created: response.$httpStatus === 201 }
 }
 
 // ---- System Settings (P1) ----
@@ -767,6 +770,7 @@ export interface SandboxSkillImage {
 export interface SandboxConfig {
   sandbox_type?: string
   default_timeout_sec?: number
+  terminal_idle_disconnect_sec?: number
   allow_private_endpoints?: boolean
   env_vars?: Record<string, string>
   volume_mount?: SandboxVolumeMountConfig
@@ -1129,10 +1133,11 @@ export function installConfigSkillFromSource(
 export function reinstallConfigSkill(
   configId: string,
   skillId: string,
+  instructions = '',
 ): Promise<{ data: { skill_id: string } }> {
   return post(
     `/api/v1/sandbox-configs/${configId}/skills/${skillId}/reinstall`,
-    {},
+    { instructions },
   ) as unknown as Promise<{ data: { skill_id: string } }>
 }
 
@@ -1225,4 +1230,19 @@ export function getConfigSkillFile(
   return get(`/api/v1/sandbox-configs/${configId}/skills/${skillId}/files/content`, {
     params: { path },
   }) as unknown as Promise<{ data: ConfigSkillFileContent }>
+}
+
+export interface SkillInstallGuidanceState {
+  accepting: boolean
+  messages: Array<{ id: string; content: string; status: 'pending' | 'injected' | 'unprocessed' }>
+}
+
+export function getConfigSkillGuidance(configId: string, skillId: string) {
+  return get(`/api/v1/sandbox-configs/${configId}/skills/${skillId}/guidance`) as unknown as Promise<{ data: SkillInstallGuidanceState }>
+}
+
+export function steerConfigSkill(configId: string, skillId: string, payload: {
+  expected_message_id: string; steer_id: string; content: string
+}) {
+  return post(`/api/v1/sandbox-configs/${configId}/skills/${skillId}/guidance`, payload)
 }

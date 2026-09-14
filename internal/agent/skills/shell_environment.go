@@ -3,7 +3,6 @@ package skills
 import (
 	"context"
 	"fmt"
-	"path"
 
 	"github.com/Tencent/WeKnora/internal/sandbox"
 )
@@ -32,8 +31,7 @@ func (m *Manager) PrepareShellEnvironment(ctx context.Context, sessionID, skillN
 	for k, v := range env {
 		runtimeEnv[k] = v
 	}
-	applySessionPackagePath(runtimeEnv, skillName)
-	runtimeEnv[nodePathEnvVar] += ":" + path.Join(dir, "node_modules")
+	applySkillNodePath(runtimeEnv, dir)
 	runtimeEnv[skillDirEnvVar] = dir
 	runtimeEnv[artifactOutputEnvVar] = ArtifactOutputDir()
 	runtimeEnv[artifactHistoryEnvVar] = ArtifactOutputDir()
@@ -41,7 +39,7 @@ func (m *Manager) PrepareShellEnvironment(ctx context.Context, sessionID, skillN
 	// Set PATH after the provider's login shell has loaded its profiles. Use a
 	// child non-login shell so leading assignments and arbitrary shell grammar
 	// keep their original meaning and cannot consume the setup prefix.
-	prefix := path.Join(dir, ".venv", "bin") + ":" + path.Join(dir, "node_modules", ".bin")
+	prefix := sandbox.SkillCommandPath(dir)
 	wrapped := "export PATH=" + sandbox.ShellQuote(prefix) + ":\"$PATH\"; exec /bin/bash --noprofile --norc -c " + sandbox.ShellQuote(command)
 	return wrapped, runtimeEnv, nil
 }
